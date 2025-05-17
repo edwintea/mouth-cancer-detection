@@ -102,7 +102,7 @@ export default async function handler(
       return res.status(500).json({ error: "Invalid response from FastAPI" });
     }
 
-    return res.status(200).json({ result: response.data.result });
+    return res.status(200).json({ result: response.data.predictions });
   } catch (error: any) {
     console.error("Error in API handler:", error.response?.data || error.message);
     return res.status(500).json({ error: error.message || "Internal Error" });

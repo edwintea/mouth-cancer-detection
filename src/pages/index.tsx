@@ -92,7 +92,7 @@ export default function Home() {
           });
 
           if (!response.data.result || !Array.isArray(response.data.result)) {
-            setResult("Invalid response from FastAPI");
+            setResult("Invalid response from FastAPI ");
             setLoading(false);
             return;
           }
@@ -126,7 +126,7 @@ export default function Home() {
   const buttonGridStyle = {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: "12px 16px", // vertical and horizontal gaps between buttons
+    gap: "12px 16px", 
     maxWidth: 360,
     margin: "0 auto 1rem",
   };
@@ -136,7 +136,7 @@ export default function Home() {
       <img src="/static/images/logo_100.png" alt="Logo" style={logoStyle} />
 
       <div style={{ position: "relative", textAlign: "center", marginBottom: 12 }}>
-                <video
+        <video
           ref={videoRef}
           style={{
             ...videoStyle,
@@ -200,15 +200,19 @@ export default function Home() {
         <h2>Scan History</h2>
         {history.length > 0 ? (
           <ul style={historyListStyle}>
-            {history.map((item: any[], index: number) => (
+            {history.map((item: any, index: number) => (
               <li key={index} style={historyItemStyle}>
                 <h3>Scan {index + 1}</h3>
                 <ul style={resultListStyle}>
-                  {item.map((resultItem: any, resultIndex: number) => (
-                    <li key={resultIndex} style={resultItemStyle}>
-                      {resultItem.label}: {resultItem.score.toFixed(2)}
-                    </li>
-                  ))}
+                  {Array.isArray(item) ? (
+                    item.map((resultItem: any, resultIndex: number) => (
+                      <li key={resultIndex} style={resultItemStyle}>
+                        {resultItem.label}: {resultItem.score.toFixed(2)}
+                      </li>
+                    ))
+                  ) : (
+                    <li>Invalid scan data</li>
+                  )}
                 </ul>
               </li>
             ))}
@@ -220,8 +224,6 @@ export default function Home() {
     </div>
   );
 }
-
-// Styles (kept as you provided)
 
 const containerStyle: React.CSSProperties = {
   maxWidth: 480,
@@ -319,3 +321,4 @@ const historyListStyle: React.CSSProperties = {
 const historyItemStyle: React.CSSProperties = {
   margin: "10px 0",
 };
+
