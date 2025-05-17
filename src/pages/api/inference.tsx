@@ -88,7 +88,7 @@ export default async function handler(
 
 
     // Forward the image file to FastAPI
-    const response = await axios.post("http://127.0.0.1:8000/api/inference", formData, {
+    const response = await axios.post("http://localhost:8000/api/inference", formData, {
       headers: {
         ...formData.getHeaders(), // very important: set proper multipart headers
       },
