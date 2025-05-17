@@ -1,13 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { InferenceClient } from "@huggingface/inference";
 import formidable, { File } from "formidable";
 import fs from "fs";
 import fsp from "fs/promises";
 import path from "path";
-
-// Hugging Face token
-const HF_TOKEN = process.env.HF_TOKEN!;
-const inference = new InferenceClient(HF_TOKEN);
+import axios from "axios";
+import FormData from "form-data";  // Use this for Node.js FormData
 
 export const config = {
   api: { bodyParser: false },
@@ -24,12 +21,13 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
+  // Check if the request method is POST
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  // Ensure uploads directory exists
+  // Ensure the upload directory exists
   try {
     if (!fs.existsSync(UPLOAD_DIR)) {
       fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -39,15 +37,14 @@ export default async function handler(
     return res.status(500).json({ error: "Server error creating upload directory" });
   }
 
-  // Create new formidable instance with options
+  // Parse the incoming form data
   const form = formidable({
     multiples: false,
     keepExtensions: true,
-    maxFileSize: 5 * 1024 * 1024, // 5 MB limit
+    maxFileSize: 5 * 1024 * 1024, // 5 MB
   });
 
   try {
-    // Parse the incoming form using the promise API
     const parsed = await new Promise<{
       fields: formidable.Fields;
       files: formidable.Files;
@@ -58,46 +55,55 @@ export default async function handler(
       });
     });
 
-    console.log("Parsed files:", parsed.files); // Log the parsed files
+    console.log("Parsed files:", parsed.files);
 
-    // Get the uploaded file from parsed files
-    const imageFile = parsed.files.image as unknown as File;
+    const imageFiles = parsed.files.image as unknown as File[];
 
-    if (!imageFile) {
+    if (!imageFiles || imageFiles.length === 0) {
       return res.status(400).json({ error: "No file uploaded under 'image'" });
     }
 
-    console.log("Image file details:", imageFile); // Log image file details
+    const imageFile = imageFiles[0];
+
+    console.log("Image file details:", imageFile);
 
     if (!imageFile.filepath) {
-      return res
-        .status(400)
-        .json({ error: "Cannot find file path of uploaded image" });
+      console.error("Image file does not have a filepath:", imageFile);
+      return res.status(400).json({ error: "Cannot find file path of uploaded image" });
     }
 
-    // Safe filename generation fallback
     const fileName = imageFile.originalFilename || `upload-${Date.now()}.jpg`;
     const destPath = path.join(UPLOAD_DIR, fileName);
 
-    // Move file from temp to uploads folder
     await fsp.rename(imageFile.filepath, destPath);
 
-    // Read file to buffer from new location
-    const fileBuffer = await fsp.readFile(destPath);
+    // Create FormData to send the image file in Node.js
+    const formData = new FormData();
 
-    // Convert to base64 string with prefix
-    const base64Image = `data:image/jpeg;base64,${fileBuffer.toString("base64")}`;
-
-    // Call the Hugging Face inference API
-    const response = await inference.imageClassification({
-      model: "Lines/Open-Domain-Oral-Disease-QA-Dataset",
-      inputs: base64Image,
+    // Append file stream, not buffer, with field name matching FastAPI param (file)
+    formData.append("file", fs.createReadStream(destPath), {
+      filename: fileName,
+      contentType: imageFile.mimetype,
     });
 
-    // Return the response from the inference API
-    return res.status(200).json({ result: response });
+    // Forward the image file to FastAPI
+    const response = await axios.post("http://127.0.0.1:8000/api/inference", formData, {
+      headers: {
+        ...formData.getHeaders(), // very important: set proper multipart headers
+      },
+    });
+
+    // Log the response from FastAPI
+    console.log("Response from FastAPI:", response.data);
+
+    // Ensure the response is valid JSON
+    if (typeof response.data !== 'object') {
+      return res.status(500).json({ error: "Invalid response from FastAPI" });
+    }
+
+    return res.status(200).json({ result: response.data.result });
   } catch (error: any) {
-    console.error("Error in API handler:", error);
+    console.error("Error in API handler:", error.response?.data || error.message);
     return res.status(500).json({ error: error.message || "Internal Error" });
   }
 }
