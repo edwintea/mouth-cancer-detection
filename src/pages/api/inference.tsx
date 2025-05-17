@@ -82,9 +82,10 @@ export default async function handler(
 
     // Append file stream, not buffer, with field name matching FastAPI param (file)
     formData.append("file", fs.createReadStream(destPath), {
-      filename: fileName,
-      contentType: imageFile.mimetype,
+        filename: fileName,
+        contentType: imageFile.mimetype ?? 'application/octet-stream', // Default value
     });
+
 
     // Forward the image file to FastAPI
     const response = await axios.post("http://127.0.0.1:8000/api/inference", formData, {

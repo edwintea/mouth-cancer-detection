@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
 export default function Home() {
-  const [result, setResult] = useState("");
-  const [history, setHistory] = useState([]);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [streaming, setStreaming] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [cameraFacingMode, setCameraFacingMode] = useState("user");
+  const [result, setResult] = useState<string>("");
+  const [history, setHistory] = useState<any[]>([]);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [streaming, setStreaming] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<string>("user");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -41,7 +41,7 @@ export default function Home() {
 
     return () => {
       if (videoRef.current?.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
+        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
         tracks.forEach((track) => track.stop());
       }
     };
@@ -129,15 +129,14 @@ export default function Home() {
     gap: "12px 16px", // vertical and horizontal gaps between buttons
     maxWidth: 360,
     margin: "0 auto 1rem",
-    };
-
+  };
 
   return (
     <div style={containerStyle}>
       <img src="/static/images/logo_100.png" alt="Logo" style={logoStyle} />
 
       <div style={{ position: "relative", textAlign: "center", marginBottom: 12 }}>
-        <video
+                <video
           ref={videoRef}
           style={{
             ...videoStyle,
@@ -154,23 +153,27 @@ export default function Home() {
         )}
       </div>
 
-    <div style={buttonGridStyle}>
-        <button onClick={toggleCamera} style={buttonStyle}>
+      <div style={buttonGridStyle}>
+        <button onClick={toggleCamera} style={buttonStyle} type="button">
           Switch Camera
         </button>
-        <button onClick={captureAndSend} disabled={loading || !streaming} style={buttonStyle}>
+        <button
+          onClick={captureAndSend}
+          disabled={loading || !streaming}
+          style={buttonStyle}
+          type="button"
+        >
           {loading ? "Analyzing…" : "Scan Mouth"}
         </button>
-        <button onClick={() => setResult("")} style={buttonStyle}>
+        <button onClick={() => setResult("")} style={buttonStyle} type="button">
           Clear Result
         </button>
-        <button onClick={clearHistory} style={buttonStyle}>
+        <button onClick={clearHistory} style={buttonStyle} type="button">
           Clear History
         </button>
       </div>
 
-
-      <canvas ref={canvasRef} style={{ display: "none" }}></canvas>
+      <canvas ref={canvasRef} style={{ display: "none" }} />
 
       <div style={resultContainerStyle}>
         {result ? (
@@ -178,7 +181,7 @@ export default function Home() {
             <div>
               <h2>Scan Result</h2>
               <ul style={resultListStyle}>
-                {JSON.parse(result).map((item, index) => (
+                {JSON.parse(result).map((item: any, index: number) => (
                   <li key={index} style={resultItemStyle}>
                     {item.label}: {item.score.toFixed(2)}
                   </li>
@@ -197,11 +200,11 @@ export default function Home() {
         <h2>Scan History</h2>
         {history.length > 0 ? (
           <ul style={historyListStyle}>
-            {history.map((item, index) => (
+            {history.map((item: any[], index: number) => (
               <li key={index} style={historyItemStyle}>
                 <h3>Scan {index + 1}</h3>
                 <ul style={resultListStyle}>
-                  {item.map((resultItem, resultIndex) => (
+                  {item.map((resultItem: any, resultIndex: number) => (
                     <li key={resultIndex} style={resultItemStyle}>
                       {resultItem.label}: {resultItem.score.toFixed(2)}
                     </li>
@@ -218,9 +221,9 @@ export default function Home() {
   );
 }
 
-// Styles
+// Styles (kept as you provided)
 
-const containerStyle = {
+const containerStyle: React.CSSProperties = {
   maxWidth: 480,
   margin: "2rem auto",
   padding: "1rem",
@@ -231,20 +234,20 @@ const containerStyle = {
   boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
 };
 
-const logoStyle = {
+const logoStyle: React.CSSProperties = {
   display: "block",
   margin: "0 auto 1rem",
   width: "100px",
 };
 
-const videoStyle = {
+const videoStyle: React.CSSProperties = {
   width: "100%",
   borderRadius: 10,
   boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
   backgroundColor: "#000",
 };
 
-const loadingOverlayStyle = {
+const loadingOverlayStyle: React.CSSProperties = {
   position: "absolute",
   top: 0,
   left: 0,
@@ -258,14 +261,14 @@ const loadingOverlayStyle = {
   pointerEvents: "none",
 };
 
-const loadingTextStyle = {
+const loadingTextStyle: React.CSSProperties = {
   fontSize: "1.5rem",
   fontWeight: "700",
   color: "#0070f3",
   userSelect: "none",
 };
 
-const buttonStyle = {
+const buttonStyle: React.CSSProperties = {
   backgroundColor: "#0070f3",
   color: "#fff",
   border: "none",
@@ -277,13 +280,7 @@ const buttonStyle = {
   boxShadow: "0 4px 8px rgba(0, 112, 243, 0.3)",
 };
 
-const hoverButtonStyle = {
-  backgroundColor: "#005bb5",
-  transform: "scale(1.05)",
-};
-
-
-const resultContainerStyle = {
+const resultContainerStyle: React.CSSProperties = {
   marginTop: 20,
   backgroundColor: "#fff",
   padding: 16,
@@ -297,16 +294,16 @@ const resultContainerStyle = {
   overflowX: "auto",
 };
 
-const resultListStyle = {
+const resultListStyle: React.CSSProperties = {
   listStyleType: "none",
   padding: 0,
 };
 
-const resultItemStyle = {
+const resultItemStyle: React.CSSProperties = {
   margin: "5px 0",
 };
 
-const historyContainerStyle = {
+const historyContainerStyle: React.CSSProperties = {
   marginTop: 20,
   backgroundColor: "#fff",
   padding: 16,
@@ -314,12 +311,11 @@ const historyContainerStyle = {
   boxShadow: "inset 0 0 4px #ddd",
 };
 
-const historyListStyle = {
+const historyListStyle: React.CSSProperties = {
   listStyleType: "none",
   padding: 0,
 };
 
-const historyItemStyle = {
+const historyItemStyle: React.CSSProperties = {
   margin: "10px 0",
 };
-
