@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
-import '../styles/style.css';
 
 export default function Home() {
   const [result, setResult] = useState<string>("");
@@ -196,7 +195,7 @@ export default function Home() {
                     {item.image && (
                       <img src={item.image} alt={item.label} className="resultItemImage" />
                     )}
-                    <span>{item.label}: {item.score.toFixed(2)}</span>
+                    <span>{item.label}: {(item.score * 100).toFixed(2)}%</span>
                   </li>
                 ))}
               </ul>
