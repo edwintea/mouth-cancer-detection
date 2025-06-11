@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
-import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
+import {
+  GoogleMap,
+  Marker,
+  useJsApiLoader
+} from "@react-google-maps/api";
 
 export default function Home() {
   const [result, setResult] = useState<string>("");
@@ -11,23 +15,39 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<string>("user");
   const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const [mapApiKey, setMapApiKey] = useState(''); // Put your Google Maps API key here or environment var
+  const mapApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""; // Google Maps API key
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: mapApiKey,
+  });
 
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-    setMapApiKey(apiKey);
-
     if (typeof window !== "undefined") {
       const savedHistory = localStorage.getItem("scanHistory");
       if (savedHistory) {
         try {
-          setHistory(JSON.parse(savedHistory));
+          const parsed = JSON.parse(savedHistory);
+          // Sort descending by timestamp (newest first)
+          parsed.sort(
+            (a: any, b: any) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setHistory(parsed);
         } catch {
           setHistory([]);
         }
       }
     }
   }, []);
+
+  const updateHistory = (newHistory: any[]) => {
+    // Sort descending by timestamp (newest first) before setting and saving
+    const sorted = [...newHistory].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    setHistory(sorted);
+    localStorage.setItem("scanHistory", JSON.stringify(sorted));
+  };
 
   useEffect(() => {
     async function startCamera() {
@@ -114,11 +134,8 @@ export default function Home() {
               timestamp: new Date().toISOString(),
             };
 
-            const newHistory = [...history, newEntry];
-            setHistory(newHistory);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("scanHistory", JSON.stringify(newHistory));
-            }
+            const newHistory = [newEntry, ...history]; // Add new entry to the beginning
+            updateHistory(newHistory);
           } catch (error) {
             console.error("Error sending image:", error);
             setResult("Error processing image. Try again!");
@@ -157,11 +174,8 @@ export default function Home() {
                   timestamp: new Date().toISOString(),
                 };
 
-                const newHistory = [...history, newEntry];
-                setHistory(newHistory);
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("scanHistory", JSON.stringify(newHistory));
-                }
+                const newHistory = [newEntry, ...history]; // Add new entry to the beginning
+                updateHistory(newHistory);
               } catch (error) {
                 console.error("Error sending image:", error);
                 setResult("Error processing image. Try again!");
@@ -200,12 +214,6 @@ export default function Home() {
 
   const decreaseZoom = () => {
     setZoomLevel((prev) => Math.max(prev - 0.1, 1));
-  };
-
-  const mapContainerStyle = {
-    width: '100%',
-    height: '150px',
-    borderRadius: '12px',
   };
 
   return (
@@ -349,6 +357,63 @@ export default function Home() {
           margin-bottom: 8px;
           font-weight: 600;
         }
+        .scanOverlay {
+          pointer-events: none;
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          border-radius: 12px;
+          overflow: hidden;
+          z-index: 10;
+        }
+        .scanLine {
+          pointer-events: none;
+          position: absolute;
+          top: -20%;
+          left: 0;
+          width: 100%;
+          height: 20%;
+          background: linear-gradient(
+            180deg,
+            transparent,
+            rgba(22, 163, 74, 0.3),
+            rgba(22, 163, 74, 0.6),
+            rgba(22, 163, 74, 0.3),
+            transparent
+          );
+          animation: scanMove 2.5s linear infinite;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          z-index: 11;
+        }
+        @keyframes scanMove {
+          0% {
+            top: -20%;
+          }
+          100% {
+            top: 100%;
+          }
+        }
+        .loadingOverlay {
+          pointer-events: auto;
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: rgba(0, 0, 0, 0.45);
+          color: white;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          border-radius: 12px;
+          font-weight: 600;
+          font-size: 1.25rem;
+          user-select: none;
+          z-index: 20;
+        }
       `}</style>
 
       <div className="container" role="main">
@@ -406,13 +471,22 @@ export default function Home() {
         <section className="resultContainer" aria-live="polite" aria-atomic="true">
           {result ? (
             typeof result === "string" && result.trim().startsWith("[") ? (
-              <div>
+			              <div>
                 <h2>Scan Result</h2>
                 <ul className="resultList">
                   {JSON.parse(result).map((item: any, index: number) => (
                     <li key={index} className="resultItem">
-                      {item.image && <img src={item.image} alt={item.label} className="resultItemImage" loading="lazy" />}
-                      <span>{item.label}: {(item.score * 100).toFixed(2)}%</span>
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt={item.label}
+                          className="resultItemImage"
+                          loading="lazy"
+                        />
+                      )}
+                      <span>
+                        {item.label}: {(item.score * 100).toFixed(2)}%
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -430,8 +504,15 @@ export default function Home() {
           {history.length > 0 ? (
             <ul className="historyList" style={{ paddingLeft: 0 }}>
               {history.map((item: any, index: number) => (
-                <li key={index} className="historyItem" style={{ marginBottom: '32px' }}>
-                  <h3>Scan {index + 1}</h3>
+                <li
+                  key={index}
+                  className="historyItem"
+                  style={{ marginBottom: "32px" }}
+                >
+                  <h3>
+                    Scan {index + 1} -{" "}
+                    {new Date(item.timestamp).toLocaleString()}
+                  </h3>
                   <ul className="resultList">
                     {Array.isArray(item.result) ? (
                       item.result.map((resultItem: any, resultIndex: number) => (
@@ -453,18 +534,38 @@ export default function Home() {
                       <li>Invalid scan data</li>
                     )}
                   </ul>
-                  {(typeof item.latitude === 'number' && typeof item.longitude === 'number' && mapApiKey) && (
-                    <div style={{ marginTop: 12, height: 150, borderRadius: 12, overflow: 'hidden' }}>
-                      <LoadScript googleMapsApiKey={mapApiKey}>
+                  {typeof item.latitude === "number" &&
+                    typeof item.longitude === "number" &&
+                    mapApiKey &&
+                    isLoaded && (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          height: 150,
+                          borderRadius: 12,
+                          overflow: "hidden",
+                        }}
+                      >
                         <GoogleMap
-                          mapContainerStyle={{ width: '100%', height: '100%' }}
+                          mapContainerStyle={{ width: "100%", height: "100%" }}
                           center={{ lat: item.latitude, lng: item.longitude }}
                           zoom={14}
                           options={{ disableDefaultUI: true }}
                         >
-                          <Marker position={{ lat: item.latitude, lng: item.longitude }} />
+                          <Marker
+                            position={{ lat: item.latitude, lng: item.longitude }}
+                          />
                         </GoogleMap>
-                      </LoadScript>
+                      </div>
+                    )}
+                  {loadError && (
+                    <div style={{ color: "red", marginTop: 8 }}>
+                      Error loading Google Maps
+                    </div>
+                  )}
+                  {!mapApiKey && (
+                    <div style={{ color: "red", marginTop: 8 }}>
+                      Google Maps API key is missing.
                     </div>
                   )}
                 </li>
