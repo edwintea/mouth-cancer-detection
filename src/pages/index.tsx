@@ -9,6 +9,7 @@ import {
 export default function Home() {
   const [result, setResult] = useState<string>("");
   const [history, setHistory] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<{ [key: number]: string }>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [streaming, setStreaming] = useState<boolean>(false);
@@ -33,8 +34,15 @@ export default function Home() {
               new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
           setHistory(parsed);
+          // Initialize active tab state for each history item
+          const initialActiveTab: { [key: number]: string } = {};
+          parsed.forEach((_: any, index: number) => {
+            initialActiveTab[index] = "Data"; // Default to 'Data' tab
+          });
+          setActiveTab(initialActiveTab);
         } catch {
           setHistory([]);
+          setActiveTab({});
         }
       }
     }
@@ -47,6 +55,13 @@ export default function Home() {
     );
     setHistory(sorted);
     localStorage.setItem("scanHistory", JSON.stringify(sorted));
+
+    // Update active tab state when history changes
+    const initialActiveTab: { [key: number]: string } = {};
+    sorted.forEach((_: any, index: number) => {
+      initialActiveTab[index] = activeTab[index] || "Data"; // Retain previous tab or default to 'Data'
+    });
+    setActiveTab(initialActiveTab);
   };
 
   useEffect(() => {
@@ -127,11 +142,14 @@ export default function Home() {
             const inferenceResult = response.data.result;
             setResult(JSON.stringify(inferenceResult, null, 2));
 
+            const imageUrl = canvas.toDataURL("image/jpeg"); // Get image data URL
+
             const newEntry = {
               result: inferenceResult,
               latitude: null,
               longitude: null,
               timestamp: new Date().toISOString(),
+              image: imageUrl, // Store image data URL
             };
 
             const newHistory = [newEntry, ...history]; // Add new entry to the beginning
@@ -167,11 +185,14 @@ export default function Home() {
                 const inferenceResult = response.data.result;
                 setResult(JSON.stringify(inferenceResult, null, 2));
 
+                const imageUrl = canvas.toDataURL("image/jpeg"); // Get image data URL
+
                 const newEntry = {
                   result: inferenceResult,
                   latitude,
                   longitude,
                   timestamp: new Date().toISOString(),
+                  image: imageUrl, // Store image data URL
                 };
 
                 const newHistory = [newEntry, ...history]; // Add new entry to the beginning
@@ -206,6 +227,7 @@ export default function Home() {
   const clearHistory = () => {
     setHistory([]);
     localStorage.removeItem("scanHistory");
+    setActiveTab({}); // Clear active tab state
   };
 
   const increaseZoom = () => {
@@ -214,6 +236,10 @@ export default function Home() {
 
   const decreaseZoom = () => {
     setZoomLevel((prev) => Math.max(prev - 0.1, 1));
+  };
+
+  const handleTabChange = (index: number, tabName: string) => {
+    setActiveTab((prev) => ({ ...prev, [index]: tabName }));
   };
 
   return (
@@ -414,6 +440,32 @@ export default function Home() {
           user-select: none;
           z-index: 20;
         }
+        /* Tab Styles */
+        .tabList {
+          list-style: none;
+          padding: 0;
+          margin: 0 0 10px 0;
+          display: flex;
+          border-bottom: 1px solid #ddd;
+        }
+        .tabItem {
+          padding: 8px 16px;
+          cursor: pointer;
+          border: 1px solid #ddd;
+          border-bottom: none;
+          border-radius: 6px 6px 0 0;
+          background-color: #f0f0f0;
+          margin-right: 4px;
+        }
+        .tabItem.active {
+          background-color: #fff;
+          font-weight: bold;
+        }
+        .tabContent {
+          padding: 16px;
+          border: 1px solid #ddd;
+          border-radius: 0 0 6px 6px;
+        }
       `}</style>
 
       <div className="container" role="main">
@@ -421,7 +473,7 @@ export default function Home() {
 
         <div className="videoContainer" aria-label="Camera preview area">
           <video
-            ref={videoRef}
+		              ref={videoRef}
             className="video"
             style={{
               filter: loading ? "blur(6px)" : "none",
@@ -471,7 +523,7 @@ export default function Home() {
         <section className="resultContainer" aria-live="polite" aria-atomic="true">
           {result ? (
             typeof result === "string" && result.trim().startsWith("[") ? (
-			              <div>
+              <div>
                 <h2>Scan Result</h2>
                 <ul className="resultList">
                   {JSON.parse(result).map((item: any, index: number) => (
@@ -503,73 +555,122 @@ export default function Home() {
           <h2>Scan History</h2>
           {history.length > 0 ? (
             <ul className="historyList" style={{ paddingLeft: 0 }}>
-              {history.map((item: any, index: number) => (
-                <li
-                  key={index}
-                  className="historyItem"
-                  style={{ marginBottom: "32px" }}
-                >
-                  <h3>
-                    Scan {index + 1} -{" "}
-                    {new Date(item.timestamp).toLocaleString()}
-                  </h3>
-                  <ul className="resultList">
-                    {Array.isArray(item.result) ? (
-                      item.result.map((resultItem: any, resultIndex: number) => (
-                        <li key={resultIndex} className="resultItem">
-                          {resultItem.image && (
-                            <img
-                              src={resultItem.image}
-                              alt={resultItem.label}
-                              className="resultItemImage"
-                              loading="lazy"
-                            />
-                          )}
-                          <span>
-                            {resultItem.label}: {(resultItem.score * 100).toFixed(2)}%
-                          </span>
-                        </li>
-                      ))
-                    ) : (
-                      <li>Invalid scan data</li>
-                    )}
-                  </ul>
-                  {typeof item.latitude === "number" &&
-                    typeof item.longitude === "number" &&
-                    mapApiKey &&
-                    isLoaded && (
-                      <div
-                        style={{
-                          marginTop: 12,
-                          height: 150,
-                          borderRadius: 12,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <GoogleMap
-                          mapContainerStyle={{ width: "100%", height: "100%" }}
-                          center={{ lat: item.latitude, lng: item.longitude }}
-                          zoom={14}
-                          options={{ disableDefaultUI: true }}
+              {history.map((item: any, index: number) => {
+                const active = activeTab[index] || "Data";
+
+                return (
+                  <li
+                    key={index}
+                    className="historyItem"
+                    style={{ marginBottom: "32px" }}
+                  >
+                    <h3>
+                      Scan {index + 1} -{" "}
+                      {new Date(item.timestamp).toLocaleString()}
+                    </h3>
+                    <ul className="tabList" role="tablist">
+                      {["Data", "Location", "Image"].map((tab) => (
+                        <li
+                          key={tab}
+                          role="tab"
+                          aria-selected={active === tab}
+                          tabIndex={0}
+                          className={`tabItem ${active === tab ? "active" : ""}`}
+                          onClick={() =>
+                            setActiveTab((prev) => ({
+                              ...prev,
+                              [index]: tab,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              setActiveTab((prev) => ({
+                                ...prev,
+                                [index]: tab,
+                              }));
+                            }
+                          }}
                         >
-                          <Marker
-                            position={{ lat: item.latitude, lng: item.longitude }}
-                          />
-                        </GoogleMap>
-                      </div>
-                    )}
-                  {loadError && (
-                    <div style={{ color: "red", marginTop: 8 }}>
-                      Error loading Google Maps
+                          {tab}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="tabContent" role="tabpanel">
+                      {active === "Data" && (
+                        <ul className="resultList">
+                          {Array.isArray(item.result) ? (
+                            item.result.map(
+                              (resultItem: any, resultIndex: number) => (
+                                <li key={resultIndex} className="resultItem">
+                                  {resultItem.image && (
+                                    <img
+                                      src={resultItem.image}
+                                      alt={resultItem.label}
+                                      className="resultItemImage"
+                                      loading="lazy"
+                                    />
+                                  )}
+                                  <span>
+                                    {resultItem.label}:{" "}
+                                    {(resultItem.score * 100).toFixed(2)}%
+                                  </span>
+                                </li>
+                              )
+                            )
+                          ) : (
+                            <li>Invalid scan data</li>
+                          )}
+                        </ul>
+                      )}
+                      {active === "Location" && (
+                        <>
+                          {typeof item.latitude === "number" &&
+                          typeof item.longitude === "number" &&
+                          mapApiKey &&
+                          isLoaded ? (
+                            <div
+                              style={{
+                                height: 150,
+                                borderRadius: 12,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <GoogleMap
+                                mapContainerStyle={{
+                                  width: "100%",
+                                  height: "100%",
+                                }}
+                                center={{ lat: item.latitude, lng: item.longitude }}
+                                zoom={14}
+                                options={{ disableDefaultUI: true }}
+                              >
+                                <Marker
+                                  position={{ lat: item.latitude, lng: item.longitude }}
+                                />
+                              </GoogleMap>
+                            </div>
+                          ) : (
+                            <p>Location data or Google Maps API not available</p>
+                          )}
+                        </>
+                      )}
+                      {active === "Image" && (
+                        <>
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt={`Scan ${index + 1} Image`}
+                              style={{ maxWidth: "100%", borderRadius: 12 }}
+                            />
+                          ) : (
+                            <p>No image available</p>
+                          )}
+                        </>
+                      )}
                     </div>
-                  )}
-                  {!mapApiKey && (
-                    <div style={{ color: "red", marginTop: 8 }}>
-                      Google Maps API key is missing.
-                    </div>
-                  )}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p>No scan history available.</p>
@@ -579,3 +680,4 @@ export default function Home() {
     </>
   );
 }
+
